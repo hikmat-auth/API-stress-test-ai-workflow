@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "k6 Load Test Interceptor",
+  "version": "1.0.0",
+  "description": "Intercept API calls from any page and stress test them instantly with k6",
+  "permissions": [
+    "cookies",
+    "tabs",
+    "storage",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "http://localhost:3000/*",
+    "http://localhost:3001/*",
+    "<all_urls>"
+  ],
+  "devtools_page": "devtools.html",
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "k6 Load Test Interceptor"
+  }
+}

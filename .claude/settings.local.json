@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -r \"WebSocket\\\\|ws://\" /d/Authornate/k6 --include=*.js --include=*.jsx --include=*.ts --include=*.tsx)",
+      "Bash(grep -r \"security\\\\|auth\\\\|token\\\\|API.*KEY\" /d/Authornate/k6 --include=*.js --include=*.jsx --exclude-dir=node_modules)",
+      "Bash(npx vite:*)"
+    ]
+  }
+}

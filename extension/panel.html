@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>k6 Load Test Interceptor</title>
+  <link rel="stylesheet" href="panel.css" />
+</head>
+<body>
+
+<!-- ── Top Bar ──────────────────────────────────────────────────────────── -->
+<div class="topbar">
+  <div class="topbar-left">
+    <span class="logo">⚡ k6 Interceptor</span>
+    <button id="btn-record" class="pill pill-red active" title="Toggle recording">
+      <span class="dot"></span> REC
+    </button>
+    <button id="btn-journey" class="pill pill-purple" title="Toggle journey recording mode">
+      🗺 Journey
+    </button>
+    <button id="btn-ws-mode" class="pill pill-blue" title="Toggle WebSocket monitoring">
+      🔵 WS
+    </button>
+    <button id="btn-clear" class="pill pill-grey" title="Clear captured requests">
+      🗑 Clear
+    </button>
+  </div>
+  <div class="topbar-right">
+    <input id="search" class="search" type="text" placeholder="Filter URL…" />
+    <select id="method-filter" class="method-select">
+      <option value="ALL">All methods</option>
+      <option value="GET">GET</option>
+      <option value="POST">POST</option>
+      <option value="PUT">PUT</option>
+      <option value="PATCH">PATCH</option>
+      <option value="DELETE">DELETE</option>
+      <option value="WS">WS</option>
+    </select>
+    <span id="req-count" class="req-count">0 requests</span>
+  </div>
+</div>
+
+<!-- ── Journey Banner ────────────────────────────────────────────────────── -->
+<div id="journey-banner" class="journey-banner hidden">
+  <span>🗺 Journey Recording: <strong id="journey-count">0</strong> steps captured</span>
+  <div class="journey-actions">
+    <button id="btn-export-script" class="pill pill-blue">⬇ Export k6 Script</button>
+    <button id="btn-stress-journey" class="pill pill-green">⚡ Stress Test Journey</button>
+    <button id="btn-clear-journey" class="pill pill-grey">✕ Clear Journey</button>
+  </div>
+</div>
+
+<!-- ── WS Monitor Banner ──────────────────────────────────────────────────── -->
+<div id="ws-banner" class="journey-banner hidden" style="background:#0f2044;border-color:#1e3a5f;">
+  <span>🔵 WS Monitor: <strong id="ws-conn-count">0</strong> connections, <strong id="ws-frame-count">0</strong> frames</span>
+  <div class="journey-actions">
+    <button id="btn-stress-ws" class="pill pill-blue">⚡ Stress WS</button>
+    <button id="btn-ws-security" class="pill pill-purple">🔐 WS Security</button>
+    <button id="btn-clear-ws" class="pill pill-grey">✕ Clear WS</button>
+  </div>
+</div>
+
+<!-- ── Main Layout ───────────────────────────────────────────────────────── -->
+<div class="main">
+
+  <!-- Request List -->
+  <div class="list-panel">
+    <div id="req-list" class="req-list">
+      <div class="empty-state">
+        <div class="empty-icon">📡</div>
+        <p>Waiting for requests…</p>
+        <small>Browse any website to capture API calls</small>
+      </div>
+    </div>
+  </div>
+
+  <!-- Detail Panel -->
+  <div class="detail-panel" id="detail-panel">
+    <div class="detail-empty" id="detail-empty">
+      <div style="font-size:2rem">👈</div>
+      <p>Select a request to inspect it</p>
+    </div>
+
+    <!-- Request Detail (hidden until selection) -->
+    <div id="detail-content" class="hidden">
+
+      <!-- Overview bar -->
+      <div class="overview-bar">
+        <span id="ov-method" class="method-badge"></span>
+        <span id="ov-status" class="status-badge"></span>
+        <span id="ov-url" class="ov-url"></span>
+        <span id="ov-time" class="ov-time"></span>
+      </div>
+
+      <!-- Tabs -->
+      <div class="tabs">
+        <button class="tab active" data-tab="overview">Overview</button>
+        <button class="tab" data-tab="headers">Headers</button>
+        <button class="tab" data-tab="body">Body</button>
+        <button class="tab" data-tab="response">Response</button>
+        <button class="tab" data-tab="mock">🎲 Mock Data</button>
+        <button class="tab" data-tab="variations">⚡ Variations</button>
+        <button class="tab" data-tab="ws-frames" id="tab-ws-frames-btn" style="display:none">🔵 WS Frames</button>
+      </div>
+
+      <div class="tab-content">
+        <!-- Overview tab -->
+        <div id="tab-overview" class="tab-pane active">
+          <table class="info-table">
+            <tbody id="overview-rows"></tbody>
+          </table>
+        </div>
+
+        <!-- Headers tab -->
+        <div id="tab-headers" class="tab-pane hidden">
+          <div class="sub-section">
+            <div class="sub-label">Request Headers</div>
+            <table class="header-table"><tbody id="req-headers-body"></tbody></table>
+          </div>
+          <div class="sub-section">
+            <div class="sub-label">Response Headers</div>
+            <table class="header-table"><tbody id="res-headers-body"></tbody></table>
+          </div>
+        </div>
+
+        <!-- Body tab -->
+        <div id="tab-body" class="tab-pane hidden">
+          <div class="sub-label">Request Body</div>
+          <pre id="req-body-content" class="code-block">—</pre>
+        </div>
+
+        <!-- Response tab -->
+        <div id="tab-response" class="tab-pane hidden">
+          <div class="sub-label">Response Body</div>
+          <pre id="res-body-content" class="code-block">Click a request to load response…</pre>
+        </div>
+
+        <!-- Mock Data tab -->
+        <div id="tab-mock" class="tab-pane hidden">
+          <div class="mock-help">
+            Smart mock data generator — analyzes payload fields and generates realistic test data per VU/iteration.
+          </div>
+
+          <div class="mock-controls">
+            <label>Preview VU #</label>
+            <input id="mock-vu" type="number" value="1" min="1" max="500" class="mini-input" />
+            <label>Iter #</label>
+            <input id="mock-iter" type="number" value="0" min="0" max="999" class="mini-input" />
+            <button id="btn-mock-refresh" class="pill pill-blue">↺ Refresh</button>
+            <button id="btn-mock-analyze" class="pill pill-purple">🔍 Analyze</button>
+          </div>
+
+          <div id="mock-fields-list" class="mock-fields"></div>
+
+          <div class="variations-preview-label">Generated Mock Payload Preview</div>
+          <pre id="mock-preview" class="code-block">—</pre>
+
+          <div class="variations-preview-label" style="margin-top:0.75rem">Generated k6 Script</div>
+          <pre id="mock-k6-script" class="code-block" style="max-height:200px;overflow-y:auto">—</pre>
+
+          <div style="margin-top:0.5rem;display:flex;gap:0.5rem">
+            <button id="btn-mock-copy-script" class="pill pill-grey">📋 Copy k6 Script</button>
+            <button id="btn-mock-stress" class="pill pill-green">⚡ Stress with Mock Data</button>
+          </div>
+        </div>
+
+        <!-- Variations tab (legacy) -->
+        <div id="tab-variations" class="tab-pane hidden">
+          <div class="variations-help">
+            Auto-detected fields that can be randomized per VU/iteration to prevent server-side caching.
+          </div>
+          <div id="variations-list"></div>
+          <div class="variations-preview-label">k6 Payload Preview</div>
+          <pre id="variations-preview" class="code-block"></pre>
+        </div>
+
+        <!-- WS Frames tab -->
+        <div id="tab-ws-frames" class="tab-pane hidden">
+          <div class="sub-label">WebSocket Frames</div>
+          <div id="ws-frames-list" style="font-family:monospace;font-size:0.75rem;max-height:300px;overflow-y:auto"></div>
+          <div style="margin-top:0.75rem">
+            <div class="sub-label">WS Info</div>
+            <table class="info-table"><tbody id="ws-info-rows"></tbody></table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action panel -->
+      <div class="action-panel">
+        <div class="action-row">
+          <div class="action-config">
+            <label>VUs</label>
+            <input id="quick-vus" type="number" value="50" min="1" max="1000" class="mini-input" />
+            <label>Duration</label>
+            <input id="quick-dur" type="number" value="30" min="5" max="600" class="mini-input" />
+            <span class="action-unit">s</span>
+          </div>
+          <button id="btn-stress" class="action-btn btn-stress">⚡ Stress This</button>
+          <button id="btn-configure" class="action-btn btn-configure">🔧 Configure</button>
+          <button id="btn-add-journey" class="action-btn btn-journey-add">＋ Journey</button>
+          <button id="btn-security-scan" class="action-btn btn-security">🔐 Scan</button>
+          <button id="btn-full-analysis" class="action-btn btn-full-analysis">🔬 Full Analysis</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="panel.js"></script>
+</body>
+</html>
